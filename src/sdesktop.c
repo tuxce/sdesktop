@@ -188,8 +188,7 @@ int main (int argc, char **argv)
 	xes.xclient.message_type = a_cur_desktop;
 	xes.xclient.format = 32;
 
-	i=10;	
-	while (--i>0)
+	while (1)
 	{
 		/* wait for an event */
 		XNextEvent(display,&xeg);
