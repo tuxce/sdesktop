@@ -1,5 +1,7 @@
+CCFLAGS=
+
 sdesktop: sdesktop.c
-	gcc sdesktop.c -o sdesktop -lX11
+	gcc $(CCFLAGS) sdesktop.c -o sdesktop -lX11
 
 install: sdesktop
 	install -D -m 755 sdesktop $(DESTDIR)/usr/bin/sdesktop

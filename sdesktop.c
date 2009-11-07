@@ -5,7 +5,12 @@
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
 
+extern char *optarg;
+extern int optind;
+extern int errno;
 
 #define NB_DESKTOP 	"_NET_NUMBER_OF_DESKTOPS"
 #define CUR_DESKTOP	"_NET_CURRENT_DESKTOP"
@@ -122,15 +127,57 @@ int main (int argc, char **argv)
 	unsigned int i;
 	int by_name=0;
 	pid_t pid;
+	int verbose=0, foreground=0;
+	int opt;
+	int optnb=0, lastopt=0;
 
-	/* daemonize */
-	if ((pid = fork ()) == -1)
+	while ((opt = getopt (argc, argv, "cfhnv")) != -1) 
 	{
-		return 1;
+		if (optind != lastopt)
+		{
+			optnb++;
+			lastopt = optind;
+		}
+		switch (opt) 
+		{
+			case 'c':
+				by_name = 0;
+				break;
+			case 'f':
+				foreground=1;
+				break;
+			case 'n':
+				by_name=1;
+				break;
+			case 'v':
+				verbose=1;
+				break;
+			case 'h':
+			default: /* '?' */
+				fprintf(stderr, "Switch desktop with mouse wheel, grab action on nautilus desktop by default\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-options] [windows ...]\n", argv[0]);
+				fprintf(stderr, "\nwhere options include:");
+				fprintf(stderr, "\n\t-c search by class (default)");
+				fprintf(stderr, "\n\t-n search by name");
+				fprintf(stderr, "\n\t-f foreground");
+				fprintf(stderr, "\n\t-v verbose\n");
+				return 1;
+		}
 	}
-	if (pid)
+
+	if (!foreground)
 	{
-		return 0;
+		/* daemonize */
+		if ((pid = fork ()) == -1)
+		{
+			if (verbose)
+				fprintf (stderr, "Unable to fork process: %s\n", strerror (errno));
+			return 1;
+		}
+		if (pid)
+		{
+			return 0;
+		}
 	}
 
 	/* handle signals */
@@ -143,22 +190,25 @@ int main (int argc, char **argv)
 	if ((a_nb_desktop = XInternAtom(display, NB_DESKTOP, True)) == None ||
 		(a_cur_desktop = XInternAtom(display, CUR_DESKTOP, True)) == None)
 	{
-		return 2;
+		if (verbose)
+			fprintf (stderr, "Unable to get atoms: %s, %s\n", NB_DESKTOP, CUR_DESKTOP);
+		return 1;
 	}
 
 	/* search window(s) */
-	if (argc > 1)
+	if (argc > optnb)
 	{
-		wins = (Window *) calloc (argc, sizeof (Window));
+		wins = (Window *) calloc (argc - optnb, sizeof (Window));
 		win = wins;
 		for (i=1; i<argc; i++)
 		{
-			if (!strcmp (argv[i], "-n") || !strcmp(argv[i], "-c"))
-			{
-				by_name = (argv[i][1] == 'n') ? 1 : 0;
+
+			if (argv[i][0] == '-')
 				continue;
-			}
-			*win = window_by (display, root, argv[i], by_name);
+			if (!strcmp (argv[i], "root"))
+				*win = root;
+			else
+				*win = window_by (display, root, argv[i], by_name);
 			if (*win) win++;
 		}
 		*win = 0;
@@ -171,7 +221,9 @@ int main (int argc, char **argv)
 	}
 	if (!wins[0])
 	{
-		return 3;
+		if (verbose)
+			fprintf (stderr, "No windows found\n");
+		return 2;
 	}
 
 	/* grab actions */
