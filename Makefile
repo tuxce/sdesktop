@@ -2,7 +2,7 @@ sdesktop: sdesktop.c
 	gcc sdesktop.c -o sdesktop -lX11
 
 install: sdesktop
-	install -m 755 sdesktop $(DESTDIR)/usr/bin
+	install -D -m 755 sdesktop $(DESTDIR)/usr/bin/sdesktop
 
 all: sdesktop
 
