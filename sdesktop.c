@@ -21,6 +21,9 @@ extern int errno;
 /* default window for handling mouse wheel */
 #define WM_DESKTOP "x-nautilus-desktop"	
 
+/* sleep time before next event handling in 10E-6 secs */
+#define WAIT_TIME 100000
+
 /* exit program on terminate=1 */
 int terminate=0;
 
@@ -229,6 +232,7 @@ int main (int argc, char **argv)
 	/* grab actions */
 	for (win=wins; *win!=0; win++)
 	{
+		XSelectInput(display, *win, StructureNotifyMask);
 		grab_btn (display, *win, BTN_UP);
 		grab_btn (display, *win, BTN_DOWN);
 	}
@@ -243,9 +247,35 @@ int main (int argc, char **argv)
 	while (1)
 	{
 		/* wait for an event */
-		XNextEvent(display,&xeg);
-		if (terminate)
+		if (XPending (display))
+		{
+			XNextEvent(display,&xeg);
+			if (xeg.type == DestroyNotify) 
+			{
+				/* window destroyed */
+				for (i=0; wins[i]!=0; i++)
+				{
+					if (wins[i]==xeg.xdestroywindow.window)
+					{
+						wins[i] = wins[i+1];
+						if (wins[i+1]) 
+							wins[i+1] = xeg.xdestroywindow.window;
+					}
+				}
+				/* no more windows */
+				if (!wins[0])
+					break;
+			}
+			if (xeg.type != ButtonPress)
+				continue;
+		}
+		else if (terminate)
 			break;
+		else 
+		{
+			usleep (WAIT_TIME);
+			continue;
+		}
 		nb_desktop = get_win_prop (display, root, a_nb_desktop);
 		cur_desktop = get_win_prop (display, root, a_cur_desktop);
 		switch (xeg.xbutton.button)
