@@ -21,7 +21,7 @@ extern int errno;
 /* default window for handling mouse wheel */
 #define WM_DESKTOP "x-nautilus-desktop"	
 
-/* sleep time before next event handling in 10E-6 secs */
+/* sleep time before next event handling in 1E-6 secs */
 #define WAIT_TIME 100000
 
 /* exit program on terminate=1 */
@@ -226,6 +226,8 @@ int main (int argc, char **argv)
 	{
 		if (verbose)
 			fprintf (stderr, "No windows found\n");
+		free (wins);
+		XCloseDisplay (display);
 		return 2;
 	}
 
