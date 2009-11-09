@@ -24,6 +24,10 @@ extern int errno;
 /* sleep time before next event handling in 1E-6 secs */
 #define WAIT_TIME 100000
 
+/* how many times should we try to find window */
+#define TRIES 3
+#define TRY_SLEEP 1
+
 /* exit program on terminate=1 */
 int terminate=0;
 
@@ -127,7 +131,7 @@ int main (int argc, char **argv)
 	Atom a_cur_desktop;
 	XEvent xes, xeg;
 	long nb_desktop, cur_desktop;
-	unsigned int i;
+	unsigned int i,j;
 	int by_name=0;
 	pid_t pid;
 	int verbose=0, foreground=0;
@@ -211,7 +215,12 @@ int main (int argc, char **argv)
 			if (!strcmp (argv[i], "root"))
 				*win = root;
 			else
-				*win = window_by (display, root, argv[i], by_name);
+			{
+				j=0;
+				while (!(*win = window_by (display, root, argv[i], by_name)) ||
+					j++>TRIES)
+					sleep (TRY_SLEEP);
+			}
 			if (*win) win++;
 		}
 		*win = 0;
@@ -219,7 +228,10 @@ int main (int argc, char **argv)
 	else
 	{
 		wins = (Window *) calloc (2, sizeof (Window));
-		wins[0] = window_by (display, root, WM_DESKTOP, 1);
+		j=0;
+		while (!(wins[0] = window_by (display, root, WM_DESKTOP, 1)) ||
+			j++>TRIES)
+			sleep (TRY_SLEEP);
 		wins[1] = 0;
 	}
 	if (!wins[0])
