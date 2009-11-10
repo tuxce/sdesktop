@@ -217,8 +217,8 @@ int main (int argc, char **argv)
 			else
 			{
 				j=0;
-				while (!(*win = window_by (display, root, argv[i], by_name)) ||
-					j++>TRIES)
+				while (!(*win = window_by (display, root, argv[i], by_name)) && 
+					j++<TRIES)
 					sleep (TRY_SLEEP);
 			}
 			if (*win) win++;
@@ -229,8 +229,8 @@ int main (int argc, char **argv)
 	{
 		wins = (Window *) calloc (2, sizeof (Window));
 		j=0;
-		while (!(wins[0] = window_by (display, root, WM_DESKTOP, 1)) ||
-			j++>TRIES)
+		while (!(wins[0] = window_by (display, root, WM_DESKTOP, 1)) &&
+			j++<TRIES)
 			sleep (TRY_SLEEP);
 		wins[1] = 0;
 	}
