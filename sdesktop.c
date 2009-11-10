@@ -203,7 +203,7 @@ int main (int argc, char **argv)
 	}
 
 	/* search window(s) */
-	if (argc > optnb)
+	if (argc > optnb+1)
 	{
 		wins = (Window *) calloc (argc - optnb, sizeof (Window));
 		win = wins;
