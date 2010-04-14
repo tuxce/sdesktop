@@ -1,3 +1,22 @@
+/*
+ *  sdesktop.c
+ *
+ *  Copyright (c) 2009-2010 Tuxce <tuxce.net@gmail.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
@@ -19,14 +38,14 @@ extern int errno;
 #define BTN_DOWN	Button5	/* mouse wheel down */
 
 /* default window for handling mouse wheel */
-#define WM_DESKTOP "x-nautilus-desktop"	
+#define WM_DESKTOP "desktop_window"	
 
 /* sleep time before next event handling in 1E-6 secs */
 #define WAIT_TIME 100000
 
 /* how many times should we try to find window */
 #define TRIES 3
-#define TRY_SLEEP 1
+#define TRY_SLEEP 2
 
 /* exit program on terminate=1 */
 int terminate=0;
@@ -137,8 +156,9 @@ int main (int argc, char **argv)
 	int verbose=0, foreground=0;
 	int opt;
 	int optnb=0, lastopt=0;
+	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN;
 
-	while ((opt = getopt (argc, argv, "cfhnv")) != -1) 
+	while ((opt = getopt (argc, argv, "cfhnvu:d:")) != -1) 
 	{
 		if (optind != lastopt)
 		{
@@ -150,11 +170,17 @@ int main (int argc, char **argv)
 			case 'c':
 				by_name = 0;
 				break;
+			case 'd':
+				btn_down = atoi (optarg);
+				break;
 			case 'f':
 				foreground=1;
 				break;
 			case 'n':
 				by_name=1;
+				break;
+			case 'u':
+				btn_up = atoi (optarg);
 				break;
 			case 'v':
 				verbose=1;
@@ -164,9 +190,11 @@ int main (int argc, char **argv)
 				fprintf(stderr, "Switch desktop with mouse wheel, grab action on nautilus desktop by default\n", argv[0]);
 				fprintf(stderr, "Usage: %s [-options] [windows ...]\n", argv[0]);
 				fprintf(stderr, "\nwhere options include:");
+				fprintf(stderr, "\n\t-d set down button (default: %d)", BTN_DOWN);
 				fprintf(stderr, "\n\t-c search by class (default)");
 				fprintf(stderr, "\n\t-n search by name");
 				fprintf(stderr, "\n\t-f foreground");
+				fprintf(stderr, "\n\t-u set up button (default: %d)", BTN_UP);
 				fprintf(stderr, "\n\t-v verbose\n");
 				return 1;
 		}
@@ -217,7 +245,7 @@ int main (int argc, char **argv)
 			else
 			{
 				j=0;
-				while (!(*win = window_by (display, root, argv[i], by_name)) && 
+				while (!(*win = window_by (display, root, argv[i], by_name)) &&
 					j++<TRIES)
 					sleep (TRY_SLEEP);
 			}
@@ -229,7 +257,7 @@ int main (int argc, char **argv)
 	{
 		wins = (Window *) calloc (2, sizeof (Window));
 		j=0;
-		while (!(wins[0] = window_by (display, root, WM_DESKTOP, 1)) &&
+		while (!(wins[0] = window_by (display, root, WM_DESKTOP, 0)) &&
 			j++<TRIES)
 			sleep (TRY_SLEEP);
 		wins[1] = 0;
@@ -247,8 +275,8 @@ int main (int argc, char **argv)
 	for (win=wins; *win!=0; win++)
 	{
 		XSelectInput(display, *win, StructureNotifyMask);
-		grab_btn (display, *win, BTN_UP);
-		grab_btn (display, *win, BTN_DOWN);
+		grab_btn (display, *win, btn_up);
+		grab_btn (display, *win, btn_down);
 	}
 	/* prepare the switch desktop event */
 	xes.type = ClientMessage;
@@ -304,6 +332,7 @@ int main (int argc, char **argv)
 				continue;
 		}
 		xes.xclient.data.l[0] = cur_desktop;
+		xes.xclient.data.l[1] = 2L;
 		/* switch desktop */
 		XSendEvent(display, root, False, 
 				 SubstructureNotifyMask | SubstructureRedirectMask,
