@@ -31,6 +31,10 @@ extern char *optarg;
 extern int optind;
 extern int errno;
 
+#define _NAME "sdesktop"
+#define _VERSION "0.2"
+
+
 #define NB_DESKTOP 	"_NET_NUMBER_OF_DESKTOPS"
 #define CUR_DESKTOP	"_NET_CURRENT_DESKTOP"
 
@@ -155,16 +159,10 @@ int main (int argc, char **argv)
 	pid_t pid;
 	int verbose=0, foreground=0;
 	int opt;
-	int optnb=0, lastopt=0;
 	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN;
 
 	while ((opt = getopt (argc, argv, "cfhnvu:d:")) != -1) 
 	{
-		if (optind != lastopt)
-		{
-			optnb++;
-			lastopt = optind;
-		}
 		switch (opt) 
 		{
 			case 'c':
@@ -187,8 +185,9 @@ int main (int argc, char **argv)
 				break;
 			case 'h':
 			default: /* '?' */
+				fprintf(stderr, "%s %s\n", _NAME, _VERSION);
 				fprintf(stderr, "Switch desktop with mouse wheel, grab action on nautilus desktop by default\n", argv[0]);
-				fprintf(stderr, "Usage: %s [-options] [windows ...]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-options] [windows ...]\n", _NAME);
 				fprintf(stderr, "\nwhere options include:");
 				fprintf(stderr, "\n\t-d set down button (default: %d)", BTN_DOWN);
 				fprintf(stderr, "\n\t-c search by class (default)");
@@ -231,15 +230,14 @@ int main (int argc, char **argv)
 	}
 
 	/* search window(s) */
-	if (argc > optnb+1)
+	if (argc > optind)
 	{
-		wins = (Window *) calloc (argc - optnb, sizeof (Window));
+		wins = (Window *) calloc (argc - optind, sizeof (Window));
 		win = wins;
-		for (i=1; i<argc; i++)
+		for (i=optind; i<argc; i++)
 		{
-
-			if (argv[i][0] == '-')
-				continue;
+			if (verbose)
+				fprintf (stderr, "Search for windows: %s\n", argv[i]);
 			if (!strcmp (argv[i], "root"))
 				*win = root;
 			else
@@ -285,6 +283,7 @@ int main (int argc, char **argv)
 	xes.xclient.window = root;
 	xes.xclient.message_type = a_cur_desktop;
 	xes.xclient.format = 32;
+	xes.xclient.data.l[1] = 2L;	/* timestamp */
 
 	while (1)
 	{
@@ -320,19 +319,17 @@ int main (int argc, char **argv)
 		}
 		nb_desktop = get_win_prop (display, root, a_nb_desktop);
 		cur_desktop = get_win_prop (display, root, a_cur_desktop);
-		switch (xeg.xbutton.button)
+		if (xeg.xbutton.button==btn_up)
 		{
-			case BTN_UP:
-				if (--cur_desktop<0) cur_desktop = nb_desktop - 1;
-				break;
-			case BTN_DOWN:
-				if (++cur_desktop==nb_desktop) cur_desktop = 0;
-				break;
-			default:
-				continue;
+			if (--cur_desktop<0) cur_desktop = nb_desktop - 1;
 		}
+		else if (xeg.xbutton.button==btn_down)
+		{
+			if (++cur_desktop==nb_desktop) cur_desktop = 0;
+		}
+		else 
+			continue;
 		xes.xclient.data.l[0] = cur_desktop;
-		xes.xclient.data.l[1] = 2L;
 		/* switch desktop */
 		XSendEvent(display, root, False, 
 				 SubstructureNotifyMask | SubstructureRedirectMask,
@@ -343,8 +340,8 @@ int main (int argc, char **argv)
 	/* ungrab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		ungrab_btn (display, *win, BTN_UP);
-		ungrab_btn (display, *win, BTN_DOWN);
+		ungrab_btn (display, *win, btn_up);
+		ungrab_btn (display, *win, btn_down);
 	}
 
 	free (wins);
