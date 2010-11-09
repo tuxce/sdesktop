@@ -32,7 +32,7 @@ extern int optind;
 extern int errno;
 
 #define _NAME "sdesktop"
-#define _VERSION "0.2"
+#define _VERSION "0.3"
 
 
 #define NB_DESKTOP 	"_NET_NUMBER_OF_DESKTOPS"
@@ -69,7 +69,7 @@ long get_win_prop (Display *d, Window w, Atom a)
 		{
 			ret = *((long *) data);
 		}
-		Xfree (data);
+		XFree (data);
 	}
 	return ret;
 }
@@ -272,9 +272,14 @@ int main (int argc, char **argv)
 	/* grab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		XSelectInput(display, *win, StructureNotifyMask);
-		grab_btn (display, *win, btn_up);
-		grab_btn (display, *win, btn_down);
+		if (*win==root)
+			XSelectInput(display, *win, StructureNotifyMask | ButtonPressMask);
+		else
+		{
+			XSelectInput(display, *win, StructureNotifyMask);
+			grab_btn (display, *win, btn_up);
+			grab_btn (display, *win, btn_down);
+		}
 	}
 	/* prepare the switch desktop event */
 	xes.type = ClientMessage;
@@ -290,7 +295,7 @@ int main (int argc, char **argv)
 		/* wait for an event */
 		if (XPending (display))
 		{
-			XNextEvent(display,&xeg);
+			XNextEvent (display,&xeg);
 			if (xeg.type == DestroyNotify) 
 			{
 				/* window destroyed */
@@ -340,8 +345,11 @@ int main (int argc, char **argv)
 	/* ungrab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		ungrab_btn (display, *win, btn_up);
-		ungrab_btn (display, *win, btn_down);
+		if (*win!=root)
+		{
+			ungrab_btn (display, *win, btn_up);
+			ungrab_btn (display, *win, btn_down);
+		}
 	}
 
 	free (wins);
