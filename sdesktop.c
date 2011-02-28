@@ -32,7 +32,7 @@ extern int optind;
 extern int errno;
 
 #define _NAME "sdesktop"
-#define _VERSION "0.3"
+#define _VERSION "0.4"
 
 
 #define NB_DESKTOP 	"_NET_NUMBER_OF_DESKTOPS"
@@ -157,11 +157,11 @@ int main (int argc, char **argv)
 	unsigned int i,j;
 	int by_name=0;
 	pid_t pid;
-	int verbose=0, foreground=0;
+	int verbose=0, foreground=0, grab=0;
 	int opt;
 	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN;
 
-	while ((opt = getopt (argc, argv, "cfhnvu:d:")) != -1) 
+	while ((opt = getopt (argc, argv, "cfghnvu:d:")) != -1)
 	{
 		switch (opt) 
 		{
@@ -173,6 +173,9 @@ int main (int argc, char **argv)
 				break;
 			case 'f':
 				foreground=1;
+				break;
+			case 'g':
+				grab=1;
 				break;
 			case 'n':
 				by_name=1;
@@ -193,6 +196,7 @@ int main (int argc, char **argv)
 				fprintf(stderr, "\n\t-c search by class (default)");
 				fprintf(stderr, "\n\t-n search by name");
 				fprintf(stderr, "\n\t-f foreground");
+				fprintf(stderr, "\n\t-g grab button if root window is selected");
 				fprintf(stderr, "\n\t-u set up button (default: %d)", BTN_UP);
 				fprintf(stderr, "\n\t-v verbose\n");
 				return 1;
@@ -272,7 +276,7 @@ int main (int argc, char **argv)
 	/* grab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		if (*win==root)
+		if (*win==root && !grab)
 			XSelectInput(display, *win, StructureNotifyMask | ButtonPressMask);
 		else
 		{
@@ -345,7 +349,7 @@ int main (int argc, char **argv)
 	/* ungrab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		if (*win!=root)
+		if (*win!=root || grab)
 		{
 			ungrab_btn (display, *win, btn_up);
 			ungrab_btn (display, *win, btn_down);
