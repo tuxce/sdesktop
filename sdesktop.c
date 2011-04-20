@@ -1,7 +1,7 @@
 /*
  *  sdesktop.c
  *
- *  Copyright (c) 2009-2010 Tuxce <tuxce.net@gmail.com>
+ *  Copyright (c) 2009-2011 Tuxce <tuxce.net@gmail.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,17 +32,22 @@ extern int optind;
 extern int errno;
 
 #define _NAME "sdesktop"
-#define _VERSION "0.4"
+#define _VERSION "0.5"
 
 
-#define NB_DESKTOP 	"_NET_NUMBER_OF_DESKTOPS"
-#define CUR_DESKTOP	"_NET_CURRENT_DESKTOP"
+#define NB_DESKTOP     "_NET_NUMBER_OF_DESKTOPS"
+#define CUR_DESKTOP    "_NET_CURRENT_DESKTOP"
+#define ACTIVE_WINDOW  "_NET_ACTIVE_WINDOW"
+#define NET_STACK      "_NET_CLIENT_LIST_STACKING"
+#define NET_WM_DESKTOP "_NET_WM_DESKTOP"
 
-#define BTN_UP		Button4	/* mouse wheel up */
-#define BTN_DOWN	Button5	/* mouse wheel down */
+#define BTN_UP   Button4  /* mouse wheel up */
+#define BTN_DOWN Button5  /* mouse wheel down */
+#define BTN_PREV 6        /* mouse wheel left */
+#define BTN_NEXT 7        /* mouse wheel right */
 
 /* default window for handling mouse wheel */
-#define WM_DESKTOP "desktop_window"	
+#define WM_DESKTOP "root"
 
 /* sleep time before next event handling in 1E-6 secs */
 #define WAIT_TIME 100000
@@ -51,10 +56,20 @@ extern int errno;
 #define TRIES 3
 #define TRY_SLEEP 2
 
+/* Errors */
+#define ERR_OPT   1
+#define ERR_FORK  2
+#define ERR_ATOMS 3
+#define ERR_WINS  4
+
 /* exit program on terminate=1 */
 int terminate=0;
 
-long get_win_prop (Display *d, Window w, Atom a)
+Atom a_net_stack;
+Atom a_net_wm_desktop;
+
+
+long get_win_prop (Display *d, Window w, Atom a, Atom req_type)
 {
 	long ret=-1;
 	Atom a_type;
@@ -62,7 +77,7 @@ long get_win_prop (Display *d, Window w, Atom a)
 	unsigned long nitems, bytes;
 	unsigned char *data;
 
-	if (XGetWindowProperty(d, w, a, 0, 1, False, XA_CARDINAL,
+	if (XGetWindowProperty(d, w, a, 0, 1, False, req_type,
 		&a_type, &a_format, &nitems, &bytes, &data) == Success)
 	{
 		if (nitems != 0 && a_format == 32)
@@ -74,8 +89,43 @@ long get_win_prop (Display *d, Window w, Atom a)
 	return ret;
 }
 
+Window get_below_win (Display *d, Window r, Window w, int first)
+{
+	Window ret=None;
+	Atom a_type;
+	int a_format;
+	int i, w_found = 0;
+	unsigned long nitems, bytes;
+	unsigned char *data;
+	long w_desktop = get_win_prop (d, w, a_net_wm_desktop, XA_CARDINAL);
+
+	if (XGetWindowProperty(d, r, a_net_stack, 0, 8192L, False, XA_WINDOW,
+		&a_type, &a_format, &nitems, &bytes, &data) == Success)
+	{
+		if (nitems != 0 && a_format == 32)
+		{
+			for (i=nitems-1; i>=0; i--)
+			{
+				Window w_prov = ((long *) data)[i];
+				if (w_desktop != get_win_prop (d, w_prov,
+				    a_net_wm_desktop, XA_CARDINAL))
+					continue;
+				if (w_found)
+				{
+					ret = w_prov;
+					if (first) break;
+				}
+				if (w_prov == w) w_found = 1;
+			}
+		}
+		XFree (data);
+	}
+	return ret;
+}
+
 void grab_btn (Display *d, Window w, unsigned int btn)
 {
+	if (btn==0) return;
 	/* Grab action whatever the state of caps lock/num lock. */
 	XGrabButton(d, btn, Mod2Mask, w, False, ButtonPressMask,
                 GrabModeAsync, GrabModeAsync,None, None);
@@ -89,6 +139,7 @@ void grab_btn (Display *d, Window w, unsigned int btn)
 
 void ungrab_btn (Display *d, Window w, unsigned int btn)
 {
+	if (btn==0) return;
 	/* Ungrab action */
 	XUngrabButton (d, btn, AnyModifier, w);
 }
@@ -97,6 +148,7 @@ void ungrab_btn (Display *d, Window w, unsigned int btn)
 /* fonction modifiée provenant de (XOrg) xprop/dsimple.c */
 Window window_by (Display *d, Window r, const char *name, int by_name)
 {
+	if (strcmp (name, "root")==0) return r;
 	Window *children, dummy;
 	unsigned int nchildren;
 	int i;
@@ -124,11 +176,11 @@ Window window_by (Display *d, Window r, const char *name, int by_name)
 	}
 	if (found)
 	{
-		return (r);
+		return r;
 	}
 
 	if (!XQueryTree(d, r, &dummy, &dummy, &children, &nchildren))
-	  return(0);
+	  return 0;
 
 	for (i=0; i<nchildren; i++) {
 		w = window_by (d, children[i], name, by_name);
@@ -136,35 +188,60 @@ Window window_by (Display *d, Window r, const char *name, int by_name)
 		  break;
 	}
 	if (children) XFree ((char *)children);
-	return(w);
+	return w;
 }
 
 void end_program (int sig)
 {
 	terminate = 1;
 }
-	
+
+void usage ()
+{
+	fprintf(stderr, "%s %s\n", _NAME, _VERSION);
+	fprintf(stderr, "Switch desktop/window with mouse\n");
+	fprintf(stderr, "Usage: %s [-options] [windows ...]\n", _NAME);
+	fprintf(stderr, "\nwhere options include:");
+	fprintf(stderr, "\n\t-a button to switch to next window (default: %d)", BTN_NEXT);
+	fprintf(stderr, "\n\t-b button to switch to previous window (default: %d)", BTN_PREV);
+	fprintf(stderr, "\n\t-c search by class (default)");
+	fprintf(stderr, "\n\t-d set down button (default: %d)", BTN_DOWN);
+	fprintf(stderr, "\n\t-f foreground");
+	fprintf(stderr, "\n\t-g grab button if root window is selected");
+	fprintf(stderr, "\n\t-n search by name");
+	fprintf(stderr, "\n\t-u set up button (default: %d)", BTN_UP);
+	fprintf(stderr, "\n\ndefault window: %s", WM_DESKTOP);
+	fprintf(stderr, "\n\n");
+}
+
 int main (int argc, char **argv)
 {
 	Display *display;
 	Window root;
+	Window active_win, bottom_win;
 	Window *wins;
 	Window *win;
-	Atom a_nb_desktop;
-	Atom a_cur_desktop;
+	Atom a_nb_desktop, a_cur_desktop, a_active_window;
 	XEvent xes, xeg;
 	long nb_desktop, cur_desktop;
 	unsigned int i,j;
 	int by_name=0;
 	pid_t pid;
-	int verbose=0, foreground=0, grab=0;
+	int foreground=0, grab=0;
 	int opt;
-	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN;
+	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN, btn_prev=BTN_PREV,
+	             btn_next=BTN_NEXT;
 
-	while ((opt = getopt (argc, argv, "cfghnvu:d:")) != -1)
+	while ((opt = getopt (argc, argv, "a:b:cfghnu:d:")) != -1)
 	{
 		switch (opt) 
 		{
+			case 'a':
+				btn_next = atoi (optarg);
+				break;
+			case 'b':
+				btn_prev = atoi (optarg);
+				break;
 			case 'c':
 				by_name = 0;
 				break;
@@ -183,23 +260,12 @@ int main (int argc, char **argv)
 			case 'u':
 				btn_up = atoi (optarg);
 				break;
-			case 'v':
-				verbose=1;
-				break;
 			case 'h':
+				usage ();
+				return 0;
 			default: /* '?' */
-				fprintf(stderr, "%s %s\n", _NAME, _VERSION);
-				fprintf(stderr, "Switch desktop with mouse wheel, grab action on nautilus desktop by default\n", argv[0]);
-				fprintf(stderr, "Usage: %s [-options] [windows ...]\n", _NAME);
-				fprintf(stderr, "\nwhere options include:");
-				fprintf(stderr, "\n\t-d set down button (default: %d)", BTN_DOWN);
-				fprintf(stderr, "\n\t-c search by class (default)");
-				fprintf(stderr, "\n\t-n search by name");
-				fprintf(stderr, "\n\t-f foreground");
-				fprintf(stderr, "\n\t-g grab button if root window is selected");
-				fprintf(stderr, "\n\t-u set up button (default: %d)", BTN_UP);
-				fprintf(stderr, "\n\t-v verbose\n");
-				return 1;
+				usage ();
+				return ERR_OPT;
 		}
 	}
 
@@ -207,11 +273,7 @@ int main (int argc, char **argv)
 	{
 		/* daemonize */
 		if ((pid = fork ()) == -1)
-		{
-			if (verbose)
-				fprintf (stderr, "Unable to fork process: %s\n", strerror (errno));
-			return 1;
-		}
+			return ERR_FORK;
 		if (pid)
 		{
 			return 0;
@@ -226,11 +288,12 @@ int main (int argc, char **argv)
 	root = DefaultRootWindow(display);
 
 	if ((a_nb_desktop = XInternAtom(display, NB_DESKTOP, True)) == None ||
-		(a_cur_desktop = XInternAtom(display, CUR_DESKTOP, True)) == None)
+		(a_cur_desktop = XInternAtom(display, CUR_DESKTOP, True)) == None ||
+		(a_active_window = XInternAtom(display, ACTIVE_WINDOW, True)) == None  ||
+		(a_net_wm_desktop = XInternAtom(display, NET_WM_DESKTOP, True)) == None  ||
+		(a_net_stack = XInternAtom(display, NET_STACK, True)) == None )
 	{
-		if (verbose)
-			fprintf (stderr, "Unable to get atoms: %s, %s\n", NB_DESKTOP, CUR_DESKTOP);
-		return 1;
+		return ERR_ATOMS;
 	}
 
 	/* search window(s) */
@@ -240,17 +303,10 @@ int main (int argc, char **argv)
 		win = wins;
 		for (i=optind; i<argc; i++)
 		{
-			if (verbose)
-				fprintf (stderr, "Search for windows: %s\n", argv[i]);
-			if (!strcmp (argv[i], "root"))
-				*win = root;
-			else
-			{
-				j=0;
-				while (!(*win = window_by (display, root, argv[i], by_name)) &&
-					j++<TRIES)
-					sleep (TRY_SLEEP);
-			}
+			j=0;
+			while (!(*win = window_by (display, root, argv[i], by_name)) &&
+				j++<TRIES)
+				sleep (TRY_SLEEP);
 			if (*win) win++;
 		}
 		*win = 0;
@@ -266,11 +322,9 @@ int main (int argc, char **argv)
 	}
 	if (!wins[0])
 	{
-		if (verbose)
-			fprintf (stderr, "No windows found\n");
 		free (wins);
 		XCloseDisplay (display);
-		return 2;
+		return ERR_WINS;
 	}
 
 	/* grab actions */
@@ -284,16 +338,14 @@ int main (int argc, char **argv)
 			grab_btn (display, *win, btn_up);
 			grab_btn (display, *win, btn_down);
 		}
+		grab_btn (display, *win, btn_prev);
+		grab_btn (display, *win, btn_next);
 	}
-	/* prepare the switch desktop event */
+
 	xes.type = ClientMessage;
 	xes.xclient.type = ClientMessage; 
 	xes.xclient.display = display;
-	xes.xclient.window = root;
-	xes.xclient.message_type = a_cur_desktop;
 	xes.xclient.format = 32;
-	xes.xclient.data.l[1] = 2L;	/* timestamp */
-
 	while (1)
 	{
 		/* wait for an event */
@@ -326,24 +378,41 @@ int main (int argc, char **argv)
 			usleep (WAIT_TIME);
 			continue;
 		}
-		nb_desktop = get_win_prop (display, root, a_nb_desktop);
-		cur_desktop = get_win_prop (display, root, a_cur_desktop);
-		if (xeg.xbutton.button==btn_up)
+		if (xeg.xbutton.button==btn_up || xeg.xbutton.button==btn_down)
 		{
-			if (--cur_desktop<0) cur_desktop = nb_desktop - 1;
+			nb_desktop = get_win_prop (display, root, a_nb_desktop, XA_CARDINAL);
+			cur_desktop = get_win_prop (display, root, a_cur_desktop, XA_CARDINAL);
+			if (xeg.xbutton.button==btn_up && --cur_desktop<0)
+				cur_desktop = nb_desktop - 1;
+			if (xeg.xbutton.button==btn_down && ++cur_desktop==nb_desktop)
+				cur_desktop = 0;
+			/* prepare the switch desktop event */
+			xes.xclient.message_type = a_cur_desktop;
+			xes.xclient.window = root;
+			xes.xclient.data.l[0] = cur_desktop;
+			xes.xclient.data.l[1] = CurrentTime;
+			xes.xclient.data.l[2] = 0L;
 		}
-		else if (xeg.xbutton.button==btn_down)
+		else if (xeg.xbutton.button==btn_prev || xeg.xbutton.button==btn_next)
 		{
-			if (++cur_desktop==nb_desktop) cur_desktop = 0;
+			active_win = (Window) get_win_prop (display, root, a_active_window, XA_WINDOW);
+			if (active_win == None) continue;
+			bottom_win = get_below_win (display, root, active_win, (xeg.xbutton.button==btn_next));
+			if (bottom_win == None) continue;
+			if (xeg.xbutton.button==btn_next)
+				XLowerWindow (display, active_win);
+			xes.xclient.message_type = a_active_window;
+			xes.xclient.window = bottom_win;
+			xes.xclient.data.l[0] = 2L; /* simulate a pager request */
+			xes.xclient.data.l[1] = CurrentTime;
+			xes.xclient.data.l[2] = active_win;
 		}
-		else 
+		else
 			continue;
-		xes.xclient.data.l[0] = cur_desktop;
-		/* switch desktop */
 		XSendEvent(display, root, False, 
 				 SubstructureNotifyMask | SubstructureRedirectMask,
 				 &xes);
-		XSync (display, False);
+		//XSync (display, False);
 	}
 
 	/* ungrab actions */
@@ -354,6 +423,8 @@ int main (int argc, char **argv)
 			ungrab_btn (display, *win, btn_up);
 			ungrab_btn (display, *win, btn_down);
 		}
+		ungrab_btn (display, *win, btn_prev);
+		ungrab_btn (display, *win, btn_next);
 	}
 
 	free (wins);
