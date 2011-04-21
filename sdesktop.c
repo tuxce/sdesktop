@@ -390,7 +390,7 @@ int main (int argc, char **argv)
 			xes.xclient.message_type = a_cur_desktop;
 			xes.xclient.window = root;
 			xes.xclient.data.l[0] = cur_desktop;
-			xes.xclient.data.l[1] = CurrentTime;
+			xes.xclient.data.l[1] = xeg.xbutton.time;
 			xes.xclient.data.l[2] = 0L;
 		}
 		else if (xeg.xbutton.button==btn_prev || xeg.xbutton.button==btn_next)
@@ -404,7 +404,7 @@ int main (int argc, char **argv)
 			xes.xclient.message_type = a_active_window;
 			xes.xclient.window = bottom_win;
 			xes.xclient.data.l[0] = 2L; /* simulate a pager request */
-			xes.xclient.data.l[1] = CurrentTime;
+			xes.xclient.data.l[1] = xeg.xbutton.time;
 			xes.xclient.data.l[2] = active_win;
 		}
 		else
