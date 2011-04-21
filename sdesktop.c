@@ -43,8 +43,8 @@ extern int errno;
 
 #define BTN_UP   Button4  /* mouse wheel up */
 #define BTN_DOWN Button5  /* mouse wheel down */
-#define BTN_PREV 6        /* mouse wheel left */
-#define BTN_NEXT 7        /* mouse wheel right */
+#define BTN_NEXT 6        /* mouse wheel right */
+#define BTN_PREV 7        /* mouse wheel left */
 
 /* default window for handling mouse wheel */
 #define WM_DESKTOP "root"
