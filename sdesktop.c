@@ -123,17 +123,17 @@ Window get_below_win (Display *d, Window r, Window w, int first)
 	return ret;
 }
 
-void grab_btn (Display *d, Window w, unsigned int btn)
+void grab_btn (Display *d, Window w, unsigned int btn, unsigned int mod)
 {
 	if (btn==0) return;
 	/* Grab action whatever the state of caps lock/num lock. */
-	XGrabButton(d, btn, Mod2Mask, w, False, ButtonPressMask,
+	XGrabButton(d, btn, mod | Mod2Mask, w, False, ButtonPressMask,
                 GrabModeAsync, GrabModeAsync,None, None);
-	XGrabButton(d, btn, LockMask, w, False, ButtonPressMask,
+	XGrabButton(d, btn, mod | LockMask, w, False, ButtonPressMask,
                 GrabModeAsync, GrabModeAsync,None, None);
-	XGrabButton(d, btn, Mod2Mask | LockMask, w, False, ButtonPressMask,
+	XGrabButton(d, btn, mod | Mod2Mask | LockMask, w, False, ButtonPressMask,
                 GrabModeAsync, GrabModeAsync,None, None);
-	XGrabButton(d, btn, 0, w, False, ButtonPressMask,
+	XGrabButton(d, btn, mod | 0, w, False, ButtonPressMask,
                 GrabModeAsync, GrabModeAsync,None, None);
 }
 
@@ -335,11 +335,13 @@ int main (int argc, char **argv)
 		else
 		{
 			XSelectInput(display, *win, StructureNotifyMask);
-			grab_btn (display, *win, btn_up);
-			grab_btn (display, *win, btn_down);
+			grab_btn (display, *win, btn_up, 0);
+			grab_btn (display, *win, btn_down, 0);
 		}
-		grab_btn (display, *win, btn_prev);
-		grab_btn (display, *win, btn_next);
+		grab_btn (display, *win, btn_prev, 0);
+		grab_btn (display, *win, btn_next, 0);
+		grab_btn (display, *win, btn_up, Mod1Mask);
+		grab_btn (display, *win, btn_down, Mod1Mask);
 	}
 
 	xes.type = ClientMessage;
