@@ -32,7 +32,7 @@ extern int optind;
 extern int errno;
 
 #define _NAME "sdesktop"
-#define _VERSION "0.5"
+#define _VERSION "1.0"
 
 
 #define NB_DESKTOP     "_NET_NUMBER_OF_DESKTOPS"
