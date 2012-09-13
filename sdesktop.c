@@ -210,6 +210,7 @@ void usage ()
 	fprintf(stderr, "\n\t-g grab button if root window is selected");
 	fprintf(stderr, "\n\t-n search by name");
 	fprintf(stderr, "\n\t-u set up button (default: %d)", BTN_UP);
+	fprintf(stderr, "\n\t-w scroll windows only");
 	fprintf(stderr, "\n\ndefault window: %s", WM_DESKTOP);
 	fprintf(stderr, "\n\n");
 }
@@ -227,12 +228,12 @@ int main (int argc, char **argv)
 	unsigned int i,j;
 	int by_name=0;
 	pid_t pid;
-	int foreground=0, grab=0;
+	int foreground=0, grab=0, just_win=0;
 	int opt;
 	unsigned int btn_up=BTN_UP, btn_down=BTN_DOWN, btn_prev=BTN_PREV,
 	             btn_next=BTN_NEXT;
 
-	while ((opt = getopt (argc, argv, "a:b:cfghnu:d:")) != -1)
+	while ((opt = getopt (argc, argv, "a:b:cfghnu:d:w")) != -1)
 	{
 		switch (opt) 
 		{
@@ -259,6 +260,9 @@ int main (int argc, char **argv)
 				break;
 			case 'u':
 				btn_up = atoi (optarg);
+				break;
+			case 'w':
+				just_win = 1;
 				break;
 			case 'h':
 				usage ();
@@ -332,7 +336,7 @@ int main (int argc, char **argv)
 	{
 		if (*win==root && !grab)
 			XSelectInput(display, *win, StructureNotifyMask | ButtonPressMask);
-		else
+		else if (!just_win)
 		{
 			XSelectInput(display, *win, StructureNotifyMask);
 			grab_btn (display, *win, btn_up, 0);
@@ -340,8 +344,11 @@ int main (int argc, char **argv)
 		}
 		grab_btn (display, *win, btn_prev, 0);
 		grab_btn (display, *win, btn_next, 0);
-		grab_btn (display, *win, btn_up, Mod1Mask);
-		grab_btn (display, *win, btn_down, Mod1Mask);
+		if (!just_win)
+		{
+			grab_btn (display, *win, btn_up, Mod1Mask);
+			grab_btn (display, *win, btn_down, Mod1Mask);
+		}
 	}
 
 	xes.type = ClientMessage;
@@ -380,7 +387,7 @@ int main (int argc, char **argv)
 			usleep (WAIT_TIME);
 			continue;
 		}
-		if (xeg.xbutton.button==btn_up || xeg.xbutton.button==btn_down)
+		if (!just_win && (xeg.xbutton.button==btn_up || xeg.xbutton.button==btn_down))
 		{
 			nb_desktop = get_win_prop (display, root, a_nb_desktop, XA_CARDINAL);
 			cur_desktop = get_win_prop (display, root, a_cur_desktop, XA_CARDINAL);
@@ -420,7 +427,7 @@ int main (int argc, char **argv)
 	/* ungrab actions */
 	for (win=wins; *win!=0; win++)
 	{
-		if (*win!=root || grab)
+		if (!just_win && (*win!=root || grab))
 		{
 			ungrab_btn (display, *win, btn_up);
 			ungrab_btn (display, *win, btn_down);
