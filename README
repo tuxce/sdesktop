@@ -1,0 +1,36 @@
+sdesktop
+Switch desktop/window with mouse
+Usage: sdesktop [-options] [windows ...]
+
+where options include:
+	-a button to switch to next window (default: 7)
+	-b button to switch to previous window (default: 6)
+	-c search by class (default)
+	-d set down button (default: 5)
+	-f foreground
+	-g grab button if root window is selected
+	-n search by name
+	-u set up button (default: 4)
+	-w scroll windows only
+
+default window: root
+
+---
+
+sdesktop
+Bascule entre les bureaux/fenêtres avec la souris
+Usage: sdesktop [-options] [windows ...]
+
+les options sont:
+	-a bouton pour passer à la fenêtre suivante (défaut: 7)
+	-b bouton pour passer à la fenêtre précédente (défaut: 6)
+	-c recherche la fenêtre par classe (défaut)
+	-d bouton pour passer au bureau précédent (défaut: 5)
+	-f ne rend pas la main
+	-g réagit au bouton de basculement de bureau partout
+	-n recheche la fenêtre par nom
+	-u bouton pour passer au bureau suivant (défaut: 4)
+	-w bascule entre les fenêtres seulement
+
+fenêtre par défaut: root
+
